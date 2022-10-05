@@ -269,7 +269,7 @@ Func SubmitJob($ImageFile, $Copies=0, $Mode="Host", $JobID="")
 	$JobFileContents &= "PrintLabel = " & $LabelFileDest & @CRLF
 	$JobFileContents &= "Copies = " & $Copies & @CRLF
 
-	; Append PTBurn Options
+	; Determine PTBurn Options
 	$PTBurnOptions = IniReadSection($IniFile, "PTBurn Options")
 	If @error Then $PTBurnOptions[0][0] = 0
 
@@ -318,6 +318,9 @@ Func SubmitJob($ImageFile, $Copies=0, $Mode="Host", $JobID="")
 
 		LogMsg($JobID & " Caching Complete (" & ElapsedHHMMSS(TimerDiff($hCacheTimer)/1000) & ")")
 	SplashOff()
+
+	; Log if an Image Options File is being used to Override/Augment the Global PTBurn Option Settings
+	If $ImageOptionsFile <> "" Then LogMsg($JobId & " Image Options = " & $ImageOptionsFile)
 
 	; Submit (Write) Job File in Job Request Folder
 	$JobFileName = $JobRequestFolder & "\" & $JobID & ".jrq"
