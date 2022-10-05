@@ -312,7 +312,7 @@ Func SubmitJob($ImageFile, $Copies=0, $Mode="Host", $JobID="")
 		LogMsg($JobID & " Caching (" & Int($FileSize/1048576) & " MB) = " & $ImageFile & " -> " & $ImageFileDest)
 		FileCopy($ImageFile, $ImageFileDest)
 
-		$FileSize = FileGetSize($ImageFile)
+		$FileSize = FileGetSize($LabelFile)
 		LogMsg($JobID & " Caching (" & Int($FileSize/1024) & " KB) = " & $LabelFile & " -> " & $LabelFileDest)
 		FileCopy($LabelFile, $LabelFileDest)
 
@@ -365,7 +365,7 @@ Func CheckWatchedJobs()
 	For $i = 1 To $WatchArray[0]
 		$JobComplete = "Job Completed (" & $WatchArray[$i] & ")"
 		For $j = 0 To ($LinesRead - 1)
-			If StringInStr($PTBurnLogEntries[$j], $JobComplete) Then
+			If StringInStr($PTBurnLogEntries[$j], $JobComplete) Then						; PTBurn has completed this job
 				$JobStarted = "Job Started (" & $WatchArray[$i] & ")"
 				For $k = 0 To $j
 					If StringInStr($PTBurnLogEntries[$k], $JobStarted) Then
@@ -388,6 +388,9 @@ Func CheckWatchedJobs()
 					EndIf
 				Next
 				ExitLoop
+
+				; Could Potentially do any additional job cleanup here (IE. If PTBurn "DeleteFiles = YES" option wasn't performing as needed)
+
 			EndIf
 		Next
 	Next
