@@ -5,8 +5,8 @@
 **NETBURN provides several enhancements to a Network Connected Primera
 (PTBurn) Host:**
 
-1.  [NETBURN provides the ability to locally cache Image and Label files
-    which are maintained on network resources]{.ul}: It appears that
+1.  **NETBURN provides the ability to locally cache Image and Label files
+    which are maintained on network resources:** It appears that
     PTPublisher and PTBurn DO NOT cache image files locally as they
     likely expect those files to already be stored on the Primera Host
     machine. While this is not a big deal (performance-wise) for one-off
@@ -23,7 +23,7 @@
     File is set to automatically delete the disc/label/request files
     once the job has completed.
 
-2.  [NETBURN runs as both a Client and a Host Process]{.ul}: The exact
+2.  **NETBURN runs as both a Client and a Host Process:** The exact
     same NETBURN executable will run as both a Host (for polling
     purposes) and as a Client (for local and remote job submission).
     NETBURN determines if it is running on the Primera Host by
@@ -31,15 +31,15 @@
     folder exists, NETBURN will run in "Host" mode. If the folder DOES
     NOT exist, NETBURN sets itself to operate as a Client.
 
-3.  [NETBURN in "Host" mode]{.ul}: If NETBURN is operating in HOST mode,
-    it will not only provide direct job submission (via PTBurn, but it
+3. **NETBURN in "Host" mode:** If NETBURN is operating in HOST mode,
+    it will not only provide direct job submission (via PTBurn), but it
     will also poll the network for remotely submitted jobs in the
     background. If NETBURN finds a job which has been remotely submitted
     (via a NETBURN Client), it simply builds an appropriate Job Request
     File and copies down the associated Image and Label files so they
     can be cached for local access
 
-4.  [NETBURN in "Client" Mode]{.ul}: If NETBURN is operating in CLIENT
+4.  **NETBURN in "Client" Mode:** If NETBURN is operating in CLIENT
     mode (not running on the Primera Host), it will provide simple
     point-and-click submission for pre-defined jobs. Just click on the
     Job and identify the number of Discs desired. NETBURN does the rest.
@@ -49,27 +49,27 @@
     file, locally cache the Image and Label files, and then submit an
     appropriate Job Description File to PTBurn.
 
-5.  [NETBURN provides simple point and click job submission for
-    pre-defined jobs:]{.ul} The NETBURN configuration file allows for
+5.  **NETBURN provides simple point and click job submission for
+    pre-defined jobs:** The NETBURN configuration file allows for
     popular/common disc publishing jobs to be easily pre-defined. The
     NETBURN main dialog box will automatically be sized to fit "buttons"
     for all pre-defined jobs. The number of jobs which can be
     pre-defined is only limited by the amount of screen real estate
     available.
 
-6.  [NETBURN provides Search and Submission for jobs which are NOT
-    pre-defined:]{.ul} A "Search" button is provided so that any jobs
+6.  **NETBURN provides Search and Submission for jobs which are NOT
+    pre-defined:** A "Search" button is provided so that any jobs
     which are NOT pre-defined. NETBURN looks for any/all ISO or GI files
     via a standard user-driven Windows File Selection Dialog Box.
 
-7.  [NETBURN automatically associates label files by using the same file
-    name and path as the Image file:]{.ul} As long as Label Files are
+7.  **NETBURN automatically associates label files by using the same file
+    name and path as the Image file** As long as Label Files are
     maintained in the same folder, and have the same file Name, as their
     corresponding Image files, NETBURN simply changes the file extension
     to identify them (.ISO/.GI -\> .STD). This makes label/Image
     management very easy and straight-forward.
 
-8.  [NETBURN Supports Global and Image Specific PTBurn Options:]{.ul}
+8.  **NETBURN Supports Global and Image Specific PTBurn Options:**
     While global PTBurn options are stored in the main NETBURN
     Configuration File (NetBurn.ini), NETBURN also checks for an
     OPTIONAL configuration file which can be uniquely associated with a
@@ -82,8 +82,8 @@
     any parameters found within will append (or override) the Global
     PTBurn Options specified in the NETBURN Configuration file.
 
-9.  [NETBURN supports the submission of multiple disc images using a
-    single "Batch Job" definition:]{.ul} By selecting an \*.NBB file
+9.  **NETBURN supports the submission of multiple disc images using a
+    single "Batch Job" definition:** By selecting an \*.NBB file
     (NetBurn Batch File), instead of a standard \*.ISO or \*.GI Image
     file, NetBurn will process that file in "Batch Mode". The NBB file
     uses a standard INI file architecture to define a collection of
@@ -94,8 +94,8 @@
     Button or using the "Search" function), NetBurn will ask how many
     copies of the set should be produced.
 
-10. [NETBURN is completely portable and does not require any
-    installation process:]{.ul} The NETBURN executable and its
+10. **NETBURN is completely portable and does not require any
+    installation process:** The NETBURN executable and its
     corresponding INI file simply need to be copied to a Network
     Resource. This very same EXE/INI can be shared by the Primera Host
     and any Network Client which wishes to use it. Furthermore, NETBURN
@@ -113,7 +113,7 @@
     (NetBurn.log) with detailed info on client host activity (Startups,
     Submission Details, Shutdowns, Job Summaries)
 
-11. [NETBURN is Free and Open-Source]{.ul}: NETBURN is maintained as a
+11. **NETBURN is Free and Open-Source:** NETBURN is maintained as a
     project on GitHub. It is written and compiled using only the very
     simple (yet powerful) AutoIT Language and Development GUI (also
     Free): https://www.autoitscript.com/site/autoit/
