@@ -2,13 +2,14 @@
 #include <Array.au3>
 #include <GUIConstants.au3>
 #include <MsgBoxConstants.au3>
+#include <StringConstants.au3>
 #include <Date.au3>
 
 Global $Title  = "NetBurn"
-Global $Version  = "1.00"
+Global $Version  = "1.10"
 
 #pragma compile(ProductName, "NetBurn")
-#pragma compile(ProductVersion, 1.00)
+#pragma compile(ProductVersion, 1.10)
 #pragma compile(CompanyName, "Digital Intelligence")
 #pragma compile(Comments, Author: Edward C. Van Every")
 
@@ -493,12 +494,84 @@ Func GetFileExtension($FN)
 EndFunc
 
 Func GetLocalIP()
-	if (@IPAddress1 <> "127.0.0.1") AND (@IPAddress1 <> "0.0.0.0") Then Return @IPAddress1
-	if (@IPAddress2 <> "127.0.0.1") AND (@IPAddress2 <> "0.0.0.0") Then Return @IPAddress2
-	if (@IPAddress3 <> "127.0.0.1") AND (@IPAddress3 <> "0.0.0.0") Then Return @IPAddress3
-	if (@IPAddress4 <> "127.0.0.1") AND (@IPAddress4 <> "0.0.0.0") Then Return @IPAddress4
 
-	return @IPAddress1
+	$IP=""
+	$IFCount=0
+
+	if (@IPAddress1 <> "127.0.0.1") AND (@IPAddress1 <> "0.0.0.0") Then
+		$IFCount += 1
+		If $IP = "" Then $IP = @IPAddress1
+	EndIf
+
+	if (@IPAddress2 <> "127.0.0.1") AND (@IPAddress2 <> "0.0.0.0") Then
+		$IFCount += 1
+		If $IP = "" Then $IP = @IPAddress2
+	EndIf
+
+	if (@IPAddress3 <> "127.0.0.1") AND (@IPAddress3 <> "0.0.0.0") Then
+		$IFCount += 1
+		If $IP = "" Then $IP = @IPAddress3
+	EndIf
+
+	if (@IPAddress4 <> "127.0.0.1") AND (@IPAddress4 <> "0.0.0.0") Then
+		$IFCount += 1
+		If $IP = "" Then $IP = @IPAddress4
+	EndIf
+
+	If $IFCount = 1 Then return $IP			; Only One IP Defined.  Good to Go!
+
+	; If we have multiple Local IP Addresses then we should to dig a little further to eliminate any Virtual (internal) addresses
+	; Find the first adapter which has an associated Gateway...
+
+	$IPConfig = GetDosAppStdOutput("ipconfig")
+	$IPInfoArray = StringSplit($IPConfig, @CRLF, 1)
+
+	$BetterIP = ""
+	$GW = ""
+	For $i = 1 to $IPInfoArray[0]
+
+		If $BetterIP = "" Then
+
+			If StringInStr($IPInfoArray[$i], "IPv4 Address") Then
+				$FieldArray = StringSplit($IPInfoArray[$i], ":")
+				If $FieldArray[0] = 2 Then $BetterIP = StringStripWS($FieldArray[2], $STR_STRIPALL)
+			EndIf
+
+		Else
+
+			If StringInStr($IPInfoArray[$i], "Default Gateway") Then
+				$FieldArray = StringSplit($IPInfoArray[$i], ":")
+				If $FieldArray[0] = 2 Then
+					$GW = StringStripWS($FieldArray[2], $STR_STRIPALL)
+					If $GW <> "" Then Return $BetterIP
+				EndIf
+				$BetterIP = ""
+			EndIf
+
+		EndIf
+
+	Next
+
+	; No adapter found with a valid gateway so just return the first one we found earlier
+	If $IP <> "" Then Return $IP
+
+	; Unable to detect
+	Return "0.0.0.0"
+
+EndFunc
+
+Func GetDOSAppStdOutput($DOSAppCmd)
+
+	$cPID = Run($DOSAppCmd, @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
+	If $cPID = 0 and @error <> 0 Then
+		$Output = "RunFail: " & $DOSAppCmd & " (Run Error Code = " & @error & ")"
+	Else
+		ProcessWaitClose($cPID)
+		$Output = StdoutRead($cPID)
+	EndIf
+	StdioClose($cPID)
+
+	return $Output
 EndFunc
 
 Func LogMsg($msg)
