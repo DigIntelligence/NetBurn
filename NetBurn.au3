@@ -307,10 +307,15 @@ Func SubmitJob($ImageFile, $Copies=0, $Mode="Host", $JobID="")
 		SplashTextOn($FullTitle,"Polled Job: " & $JobID & @CRLF & @CRLF & "Caching IMAGE and LABEL Files...")
 	EndIf
 		$hCacheTimer = TimerInit()
-		LogMsg($JobID & " Caching = " & $ImageFile & " -> " & $ImageFileDest)
+
+		$FileSize = FileGetSize($ImageFile)
+		LogMsg($JobID & " Caching (" & Int($FileSize/1048576) & " MB) = " & $ImageFile & " -> " & $ImageFileDest)
 		FileCopy($ImageFile, $ImageFileDest)
-		LogMsg($JobID & " Caching = " & $LabelFile & " -> " & $LabelFileDest)
+
+		$FileSize = FileGetSize($ImageFile)
+		LogMsg($JobID & " Caching (" & Int($FileSize/1024) & " KB) = " & $LabelFile & " -> " & $LabelFileDest)
 		FileCopy($LabelFile, $LabelFileDest)
+
 		LogMsg($JobID & " Caching Complete (" & ElapsedHHMMSS(TimerDiff($hCacheTimer)/1000) & ")")
 	SplashOff()
 
