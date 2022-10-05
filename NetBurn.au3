@@ -4,7 +4,8 @@
 #include <MsgBoxConstants.au3>
 #include <Date.au3>
 
-Global $Title  = "NetBurn v1.00"
+Global $Title  = "NetBurn"
+Global $Version  = "1.00"
 
 #pragma compile(ProductName, "NetBurn")
 #pragma compile(ProductVersion, 1.00)
@@ -21,6 +22,7 @@ Global $LogFile
 Global $IPAddress
 Global $WatchArray[1] = [0]
 Global $PTBurnJobLog
+Global $FullTitle = $Title & " v" & $Version
 
 ; INI File Settings
 Global $SearchFolder=""
@@ -77,13 +79,13 @@ Else
 EndIf
 
 ; Log Startup
-LogMsg("Startup")
+LogMsg("Startup (v" & $Version & ")")
 
 ; Here we go!
 
 $OptionSpace = 30
 $OptionsHeight = ($OptionCount * $OptionSpace)
-GUICreate($Title & " (" & $OpMode & ")", 500, 80 + $OptionsHeight, -1, -1, $WS_SIZEBOX)
+GUICreate($FullTitle & " (" & $OpMode & ")", 500, 80 + $OptionsHeight, -1, -1, $WS_SIZEBOX)
 
 For $i = 0 To $OptionCount-1
 	$OptionInfo[$i][3] = GUICtrlCreateButton($OptionInfo[$i][1], 20, 20 + ($i * $OptionSpace), 460, 20)
@@ -145,26 +147,26 @@ Func PollJobs()
 			$sFileName = FileFindNextFile($hSearch)
 			If @error Then ExitLoop
 			$FullFileName = $RemoteJobsFolder & "\" & $sFileName
+			$JobID = GetBaseFileName($FullFileName)
 
 			$ImageFile = IniRead($FullFileName, "Config", "ImageFile", "")
 			$Copies    = Int(IniRead($FullFileName, "Config", "Copies", "0"))
 
-			$JobID = GetBaseFileName($FullFileName)
-			LogMsg($JobId & " Polled")
+			LogMsg($JobId & " Polled = " & $FullFileName )
 
-			If ($ImageFile <> "") AND ($Copies > 0) Then
-				SubmitJob($ImageFile, $Copies, "Poll", $JobID)
-			EndIf
-
+			; Delete "Polled" Job info (*.ini) as sson as the needed data is extracted (BEFORE Caching).  This will HELP prevent duplicate HOSTs from Polling the same job after the first Host has grabbed it.
 			FileDelete($FullFileName)
 
 			; If Network Permissions are not correct, then files may NOT get deleted which can cause them to get "polled" (run) over and over...
 			While FileExists($FullFileName)
-				MsgBox($MB_ICONERROR, $Title, "Warning:  Unable to Delete Network Job File!" & @CRLF & @CRLF & $FullFileName & @CRLF & @CRLF & "Check Network Permissions!"& @CRLF & "(Manually Delete File to Continue)")
+				MsgBox($MB_ICONERROR, $FullTitle, "Warning:  Unable to Delete Network Job File!" & @CRLF & @CRLF & $FullFileName & @CRLF & @CRLF & "Check Network Permissions!"& @CRLF & "(Manually Delete File to Continue)")
 				FileDelete($FullFileName)
 			WEnd
-
 			LogMsg($JobId & " Deleted = " & $FullFileName )
+
+			If ($ImageFile <> "") AND ($Copies > 0) Then
+				SubmitJob($ImageFile, $Copies, "Poll", $JobID)
+			EndIf
 
 		WEnd
 
@@ -197,15 +199,15 @@ EndFunc
 Func SubmitJob($ImageFile, $Copies=0, $Mode="Host", $JobID="")
 
 	If $ImageFile = "" Then
-		$ImageFile = FileOpenDialog($Title & ": Please Select an Image file", $SearchFolder, "Images (*.gi;*.iso;*.nbb)", 1 + 2 )
+		$ImageFile = FileOpenDialog($FullTitle & ": Please Select an Image file", $SearchFolder, "Images (*.gi;*.iso;*.nbb)", 1 + 2 )
 		If @error Then
-			MsgBox(4096,$Title,"No File Chosen...")
+			MsgBox(4096,$FullTitle,"No File Chosen...")
 			Return
 		EndIf
 	EndIf
 
 	; Get Number of Discs Required
-	If $Copies = 0 Then $Copies = InputBox($Title, "How Many Discs Would You Like to Make?", "1")
+	If $Copies = 0 Then $Copies = InputBox($FullTitle, "How Many Discs Would You Like to Make?", "1")
 
 	; Is this a Batch Job?
 	$ImageFileExt = GetFileExtension($ImageFile)
@@ -213,7 +215,7 @@ Func SubmitJob($ImageFile, $Copies=0, $Mode="Host", $JobID="")
 		SubmitBatchJob($ImageFile, $Copies, $Mode, $JobID)
 		Return
 	ElseIf ($ImageFileExt <> ".gi") AND ($ImageFileExt <> ".iso") Then
-		MsgBox(4096,$Title,"Unsupported Image File: " & $ImageFile)
+		MsgBox(4096,$FullTitle,"Unsupported Image File: " & $ImageFile)
 		Return
 	EndIf
 
@@ -225,7 +227,7 @@ Func SubmitJob($ImageFile, $Copies=0, $Mode="Host", $JobID="")
 
 	; Confirm Label File Exists
 	If NOT FileExists($LabelFile) Then
-		MsgBox(4096,$Title,"Label File Does Not Exist: " & $LabelFile)
+		MsgBox(4096,$FullTitle,"Label File Does Not Exist: " & $LabelFile)
 		Return
 	EndIf
 
@@ -242,9 +244,9 @@ Func SubmitJob($ImageFile, $Copies=0, $Mode="Host", $JobID="")
 		IniWrite($JobFileName, "Config", "Copies", $Copies)
 
 		If NOT FileExists($JobFileName) Then
-			MsgBox($MB_ICONERROR, $Title, "Warning:  Unable to Create Network Job File!" & @CRLF & @CRLF & $JobFileName & @CRLF & @CRLF & "Check Network Permissions!")
+			MsgBox($MB_ICONERROR, $FullTitle, "Warning:  Unable to Create Network Job File!" & @CRLF & @CRLF & $JobFileName & @CRLF & @CRLF & "Check Network Permissions!")
 		Else
-			MsgBox($MB_ICONINFORMATION, $Title, "Job has been Submitted" & @CRLF & @CRLF & $BaseFileName & @CRLF & @CRLF & "Copies: " & $Copies)
+			MsgBox($MB_ICONINFORMATION, $FullTitle, "Job has been Submitted" & @CRLF & @CRLF & $BaseFileName & @CRLF & @CRLF & "Copies: " & $Copies)
 			LogMsg($JobId & " Staged = " & $ImageFile & " (Copies: " & $Copies & ")")
 		EndIf
 
@@ -300,9 +302,9 @@ Func SubmitJob($ImageFile, $Copies=0, $Mode="Host", $JobID="")
 
 	; Copy IMAGE and LABEL files to Job Request Folder
 	If $Mode = "Host" Then
-		SplashTextOn($Title, "Job: " & $JobID & @CRLF & @CRLF &"Caching IMAGE and LABEL Files...")
+		SplashTextOn($FullTitle, "Job: " & $JobID & @CRLF & @CRLF &"Caching IMAGE and LABEL Files...")
 	Else	; $Mode = "Poll"
-		SplashTextOn($Title,"Polled Job: " & $JobID & @CRLF & @CRLF & "Caching IMAGE and LABEL Files...")
+		SplashTextOn($FullTitle,"Polled Job: " & $JobID & @CRLF & @CRLF & "Caching IMAGE and LABEL Files...")
 	EndIf
 		$hCacheTimer = TimerInit()
 		LogMsg($JobID & " Caching = " & $ImageFile & " -> " & $ImageFileDest)
@@ -439,7 +441,7 @@ Func GetConfig()
 		$SortBy               = IniRead($IniFile, "Config", "SortBy", $SortBy)
 		$PollTime             = Int(IniRead($IniFile, "Config", "PollTime", "60"))
 	Else
-		MsgBox(16, $Title, "Config File (" & $IniFile & ") Not Found!")
+		MsgBox(16, $FullTitle, "Config File (" & $IniFile & ") Not Found!")
 		Exit (2)
 	EndIf
 EndFunc
