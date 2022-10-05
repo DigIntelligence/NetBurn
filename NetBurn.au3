@@ -162,7 +162,7 @@ Func PollJobs()
 				MsgBox($MB_ICONERROR, $FullTitle, "Warning:  Unable to Delete Network Job File!" & @CRLF & @CRLF & $FullFileName & @CRLF & @CRLF & "Check Network Permissions!"& @CRLF & "(Manually Delete File to Continue)")
 				FileDelete($FullFileName)
 			WEnd
-			LogMsg($JobId & " Deleted = " & $FullFileName )
+;			LogMsg($JobId & " Deleted = " & $FullFileName )
 
 			If ($ImageFile <> "") AND ($Copies > 0) Then
 				SubmitJob($ImageFile, $Copies, "Poll", $JobID)
