@@ -1,29 +1,33 @@
+#Region ;**** Directives created by AutoIt3Wrapper_GUI ****
+#AutoIt3Wrapper_AU3Check_Parameters=-d
+#EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 #include <File.au3>
 #include <Array.au3>
 #include <GUIConstants.au3>
 #include <MsgBoxConstants.au3>
 #include <StringConstants.au3>
 #include <Date.au3>
+#include <GUIEdit.au3>
+#include <FontConstants.au3>
+#include <FileConstants.au3>
 
 Global $Title  = "NetBurn"
-Global $Version  = "1.10"
+Global $Version  = "1.25"
 
 #pragma compile(ProductName, "NetBurn")
-#pragma compile(ProductVersion, 1.10)
+#pragma compile(ProductVersion, 1.25)
 #pragma compile(CompanyName, "Digital Intelligence")
 #pragma compile(Comments, Author: Edward C. Van Every")
 
 Global $IniFile
-Global $OptionCount
-Global $OptionInfo[1][4]
-Global $SelectedOption
-Global $RemoteJobsFolder
 Global $OpMode
 Global $LogFile
 Global $IPAddress
 Global $WatchArray[1] = [0]
 Global $PTBurnJobLog
 Global $FullTitle = $Title & " v" & $Version
+Global $LogCtrlID
+Global $LogArray
 
 ; INI File Settings
 Global $SearchFolder=""
@@ -50,7 +54,7 @@ $LogFile = StringTrimRight(@ScriptFullPath,4) & ".log"
 ; Determine Remote Jobs Submission sub-folder (NetBurnJobs)
 ; Run this App from a Network Share for polled remote retrieval of jobs
 ; This allows Image files to be copied down (cached) to a local drive for processing (then auto-deleted)
-$RemoteJobsFolder = StringTrimRight(@ScriptFullPath,4) & "Jobs"
+Local $RemoteJobsFolder = StringTrimRight(@ScriptFullPath,4) & "Jobs"
 If NOT FileExists($RemoteJobsFolder) Then DirCreate($RemoteJobsFolder)
 
 ; Get Local IP Address (for Logging)
@@ -61,7 +65,8 @@ GetConfig()
 $PTBurnJobLog = $JobRequestFolder & "\Log\SystemLog.txt"
 
 ; Get Pre-Defined Job Information (from INI File)
-GetOptionInfo()
+Local $OptionInfo = GetOptionInfo()
+Local $OptionCount = UBound($OptionInfo)
 
 ; Determine if Job Info should be sorted
 if ($SortBy = "JobName") Then
@@ -73,31 +78,59 @@ ElseIf ($SortBy = "ImageFile") Then
 EndIf
 
 ; Determine if we are the PTBurn Host or a Network Client
+Local $LogLines = 0
+Local $LogWindowHeight = 0
 If FileExists($JobRequestFolder) Then
 	$OpMode="Host"
+	$LogLines = 11
+	$LogWindowHeight = ($LogLines * 14) + 46
 Else
 	$OpMode="Client"
 EndIf
 
-; Log Startup
+; Init the Tail
+If $OpMode = "Host" Then
+	$LogArray = TailInit($LogFile, $LogLines)
+	If $LogArray[0] = -1 Then
+		MsgBox($MB_ICONERROR, $FullTitle, "Fatal Error: Unable to Open Log File: " & $LogFile)
+		Exit
+	EndIf
+EndIf
+
+; Log Startup (Can't Log till AFTER the tail Array is established as LogMsg uses it...)
 LogMsg("Startup (v" & $Version & ")")
 
 ; Here we go!
+Local $OptionSpace = 30
+Local $OptionsHeight = Ceiling($OptionCount/2) * $OptionSpace
+Local $GUIWidth = 800
 
-$OptionSpace = 30
-$OptionsHeight = ($OptionCount * $OptionSpace)
-GUICreate($FullTitle & " (" & $OpMode & ")", 500, 80 + $OptionsHeight, -1, -1, $WS_SIZEBOX)
+GUICreate($FullTitle & " (" & $OpMode & ")", $GUIWidth, 60 + $OptionsHeight + $LogWindowHeight, -1, -1)
 
+Local $VIndex
+Local $HPos
 For $i = 0 To $OptionCount-1
-	$OptionInfo[$i][3] = GUICtrlCreateButton($OptionInfo[$i][1], 20, 20 + ($i * $OptionSpace), 460, 20)
+	$VIndex = Floor($i/2)
+	$HPos = 20
+	If BitAND($i, 1) Then $HPos += ($GUIWidth/2)
+	$OptionInfo[$i][3] = GUICtrlCreateButton($OptionInfo[$i][1], $HPos, 20 + ($VIndex * $OptionSpace), ($GUIWidth/2) - 40 , 20)
 Next
 
-$Search = GUICtrlCreateButton("Search", 125, $OptionsHeight + 25, 50, 20)
-$Exit   = GUICtrlCreateButton("Exit", 325, $OptionsHeight + 25, 50, 20)
+If $OpMode = "Host" Then
+	$LogCtrlID = GuiCtrlCreateEdit("", 20, $OptionsHeight + 25, $GUIWidth - 40, $LogWindowHeight - 20, $WS_HSCROLL + $ES_READONLY)
+	GuiCtrlSetFont($LogCtrlID, 8.5, $FW_DONTCARE, $GUI_FONTNORMAL, "Courier New")
+EndIf
+
+Local $x = (($GuiWidth - (2 * 50)) / 3)
+Local $Search = GUICtrlCreateButton("Search", $x, $OptionsHeight + $LogWindowHeight + 25, 50, 20)
+Local $Exit   = GUICtrlCreateButton("Exit", (2 * $x) + 50, $OptionsHeight + $LogWindowHeight + 25, 50, 20)
 
 GUISetState()
 
-$hTimer = TimerInit()
+GUICtrlSetData($LogCtrlID, _ArrayToString($LogArray, @CRLF, 1))
+
+Local $msg
+Local $hTimer = TimerInit()
 Do
 	$msg = GUIGetMsg()
 
@@ -118,7 +151,16 @@ Do
 	; Do Remote Polling Here (Only the Host)
 	If $OpMode = "Host" Then
 		If (TimerDiff($hTimer)/1000) > $PollTime Then
-			PollJobs()
+
+			; Any Client Jobs Submitted?
+			PollJobs($RemoteJobsFolder)
+
+			; Watch for any "live" Jobs that have been fully completed by PTBurn (and log them)
+			CheckWatchedJobs()
+
+			; Check to see if we need to update the log Control
+			If Tail($LogArray) > 0 Then GUICtrlSetData($LogCtrlID, _ArrayToString($LogArray, @CRLF, 1))
+
 			$hTimer = TimerInit()
 		EndIf
 	EndIf
@@ -127,33 +169,37 @@ Until $msg = $GUI_EVENT_CLOSE
 
 GUIDelete()
 
-; Log Startup
+; Log Shutdown
 LogMsg("ShutDown")
+
+; Clean Up The Tail
+If $OpMode= "Host" Then TailTerminate($LogArray)
+
+Exit
 
 ;-------------------------------------------------------------------------
 
-Func PollJobs()
+Func PollJobs($RemoteJobsFolder)
 
 	; Check for the PTBurn Bug which displays a Window requesting a disc to be inserted after the jobs complete (and close it)
 	; WinClose("Insert disc","Please insert a disc into drive")
 
-	; Watch for any "live" Jobs that have been fully completed by PTBurn
-	CheckWatchedJobs()
+	Local $hSearch, $FileName, $FullFileName, $JobID, $ImageFile, $Copies
 
 	; Poll for Jobs submitted by Clients
 	$hSearch = FileFindFirstFile($RemoteJobsFolder & "\*.ini")
     If $hSearch <> -1 Then
 
 		While 1
-			$sFileName = FileFindNextFile($hSearch)
+			$FileName = FileFindNextFile($hSearch)
 			If @error Then ExitLoop
-			$FullFileName = $RemoteJobsFolder & "\" & $sFileName
+			$FullFileName = $RemoteJobsFolder & "\" & $FileName
 			$JobID = GetBaseFileName($FullFileName)
 
 			$ImageFile = IniRead($FullFileName, "Config", "ImageFile", "")
 			$Copies    = Int(IniRead($FullFileName, "Config", "Copies", "0"))
 
-			LogMsg($JobId & " Polled = " & $FullFileName )
+			LogMsg($JobId & " Accepted = " & $FullFileName )
 
 			; Delete "Polled" Job info (*.ini) as sson as the needed data is extracted (BEFORE Caching).  This will HELP prevent duplicate HOSTs from Polling the same job after the first Host has grabbed it.
 			FileDelete($FullFileName)
@@ -178,7 +224,7 @@ EndFunc
 
 Func SubmitBatchJob($BatchFile, $Copies, $Mode, $JobID)
 
-	$JobNames = IniReadSectionNames($BatchFile)
+	Local $JobNames = IniReadSectionNames($BatchFile)
 	If @error Then
 		MsgBox(4096, "", "Error occurred, Batch File Not Found: " & $BatchFile)
 		Return
@@ -188,7 +234,7 @@ Func SubmitBatchJob($BatchFile, $Copies, $Mode, $JobID)
 
 	For $i = 1 To $JobNames[0]
 		if ($JobNames[$i] = "Config") then ContinueLoop
-		$ImageFile = IniRead($BatchFile, $JobNames[$i], "ImageFile", "")
+		Local $ImageFile = IniRead($BatchFile, $JobNames[$i], "ImageFile", "")
 		If $ImageFile <> "" Then
 			SubmitJob($ImageFile, $Copies, $Mode, $JobID)
 			Sleep(100)
@@ -211,7 +257,7 @@ Func SubmitJob($ImageFile, $Copies=0, $Mode="Host", $JobID="")
 	If $Copies = 0 Then $Copies = InputBox($FullTitle, "How Many Discs Would You Like to Make?", "1")
 
 	; Is this a Batch Job?
-	$ImageFileExt = GetFileExtension($ImageFile)
+	Local $ImageFileExt = GetFileExtension($ImageFile)
 	If $ImageFileExt = ".nbb" Then
 		SubmitBatchJob($ImageFile, $Copies, $Mode, $JobID)
 		Return
@@ -221,10 +267,10 @@ Func SubmitJob($ImageFile, $Copies=0, $Mode="Host", $JobID="")
 	EndIf
 
 	; Calculate Base File Name
-	$BaseFileName=GetBaseFileName($ImageFile)
+	Local $BaseFileName=GetBaseFileName($ImageFile)
 
 	; Calculate Label File
-	$LabelFile = StringTrimRight($ImageFile, StringLen($ImageFileExt)) & ".std"
+	Local $LabelFile = StringTrimRight($ImageFile, StringLen($ImageFileExt)) & ".std"
 
 	; Confirm Label File Exists
 	If NOT FileExists($LabelFile) Then
@@ -233,12 +279,13 @@ Func SubmitJob($ImageFile, $Copies=0, $Mode="Host", $JobID="")
 	EndIf
 
 	; Calculate/Check Image Options File (Optional)
-	$ImageOptionsFile = StringTrimRight($LabelFile, 4) & ".ini"
+	Local $ImageOptionsFile = StringTrimRight($LabelFile, 4) & ".ini"
 	If NOT FileExists($ImageOptionsFile) Then $ImageOptionsFile = ""
 
 	; Generate a unique JobID (If Not Provided)
 	If $JobID = "" Then $JobID = @YEAR & @MON & @MDAY & @HOUR & @MIN & @SEC & @MSEC
 
+	Local $JobFileName
 	If $Mode = "Client" Then
 		$JobFileName = $RemoteJobsFolder & "\" & $JobID & ".ini"
 		IniWrite($JobFileName, "Config", "ImageFile", $ImageFile)
@@ -248,7 +295,7 @@ Func SubmitJob($ImageFile, $Copies=0, $Mode="Host", $JobID="")
 			MsgBox($MB_ICONERROR, $FullTitle, "Warning:  Unable to Create Network Job File!" & @CRLF & @CRLF & $JobFileName & @CRLF & @CRLF & "Check Network Permissions!")
 		Else
 			MsgBox($MB_ICONINFORMATION, $FullTitle, "Job has been Submitted" & @CRLF & @CRLF & $BaseFileName & @CRLF & @CRLF & "Copies: " & $Copies)
-			LogMsg($JobId & " Staged = " & $ImageFile & " (Copies: " & $Copies & ")")
+			LogMsg($JobId & " Requested = " & $ImageFile & " (Copies: " & $Copies & ")")
 		EndIf
 
 		Return
@@ -257,20 +304,21 @@ Func SubmitJob($ImageFile, $Copies=0, $Mode="Host", $JobID="")
 	; Host Side Processing
 
 	; Create Job Folder (Required for auto file deletion)
-	$JobFolder = $JobRequestFolder & "\" & $JobID
+	Local $JobFolder = $JobRequestFolder & "\" & $JobID
 	DirCreate($JobFolder)
 
 	; Calculate Destination IMAGE and LABEL file names
-	$ImageFileDest = $JobFolder & "\" & $BaseFileName & $ImageFileExt
-	$LabelFileDest = $JobFolder & "\" & $BaseFileName & ".std"
+	Local $ImageFileDest = $JobFolder & "\" & $BaseFileName & $ImageFileExt
+	Local $LabelFileDest = $JobFolder & "\" & $BaseFileName & ".std"
 
 	; Generate Job File Contents
-	$JobFileContents  = "JobID = " & $JobID & @CRLF
+	Local $JobFileContents  = "JobID = " & $JobID & @CRLF
 	$JobFileContents &= "ImageFile = " & $ImageFileDest & @CRLF
 	$JobFileContents &= "PrintLabel = " & $LabelFileDest & @CRLF
 	$JobFileContents &= "Copies = " & $Copies & @CRLF
 
 	; Determine PTBurn Options
+	Local $ImageOptions
 	$PTBurnOptions = IniReadSection($IniFile, "PTBurn Options")
 	If @error Then $PTBurnOptions[0][0] = 0
 
@@ -293,7 +341,7 @@ Func SubmitJob($ImageFile, $Copies=0, $Mode="Host", $JobID="")
 
 	If $ImageOptionsFile <> "" Then
 		For $i = 1 To $ImageOptions[0][0]
-			$Found = 0
+			Local $Found = 0
 			For $j = 1 To $PTBurnOptions[0][0]
 				If $PTBurnOptions[$j][0] = $ImageOptions[$i][0] Then $Found = 1
 			Next
@@ -302,23 +350,17 @@ Func SubmitJob($ImageFile, $Copies=0, $Mode="Host", $JobID="")
 	EndIf
 
 	; Copy IMAGE and LABEL files to Job Request Folder
-	If $Mode = "Host" Then
-		SplashTextOn($FullTitle, "Job: " & $JobID & @CRLF & @CRLF &"Caching IMAGE and LABEL Files...")
-	Else	; $Mode = "Poll"
-		SplashTextOn($FullTitle,"Polled Job: " & $JobID & @CRLF & @CRLF & "Caching IMAGE and LABEL Files...")
-	EndIf
-		$hCacheTimer = TimerInit()
+	Local $hCacheTimer = TimerInit()
 
-		$FileSize = FileGetSize($ImageFile)
-		LogMsg($JobID & " Caching (" & Int($FileSize/1048576) & " MB) = " & $ImageFile & " -> " & $ImageFileDest)
-		FileCopy($ImageFile, $ImageFileDest)
+	Local $FileSize = FileGetSize($ImageFile)
+	LogMsg($JobID & " Caching (" & Int($FileSize/1048576) & " MB) = " & $ImageFile & " -> " & $ImageFileDest)
+	FileCopy($ImageFile, $ImageFileDest)
 
-		$FileSize = FileGetSize($LabelFile)
-		LogMsg($JobID & " Caching (" & Int($FileSize/1024) & " KB) = " & $LabelFile & " -> " & $LabelFileDest)
-		FileCopy($LabelFile, $LabelFileDest)
+	$FileSize = FileGetSize($LabelFile)
+	LogMsg($JobID & " Caching (" & Int($FileSize/1024) & " KB) = " & $LabelFile & " -> " & $LabelFileDest)
+	FileCopy($LabelFile, $LabelFileDest)
 
-		LogMsg($JobID & " Caching Complete (" & ElapsedHHMMSS(TimerDiff($hCacheTimer)/1000) & ")")
-	SplashOff()
+	LogMsg($JobID & " Caching Complete (" & ElapsedHHMMSS(TimerDiff($hCacheTimer)/1000) & ")")
 
 	; Log if an Image Options File is being used to Override/Augment the Global PTBurn Option Settings
 	If $ImageOptionsFile <> "" Then LogMsg($JobId & " Image Options = " & $ImageOptionsFile)
@@ -340,7 +382,7 @@ EndFunc
 Func UnWatchJob($ID)
 	If $WatchArray[0] = 0 Then Return 0
 
-	$Index = _ArraySearch($WatchArray, $ID)
+	Local $Index = _ArraySearch($WatchArray, $ID)
 	If $Index > 0 Then
 		If _ArrayDelete($WatchArray, $Index) > 0 Then
 			$WatchArray[0] -= 1
@@ -358,29 +400,29 @@ EndFunc
 Func CheckWatchedJobs()
 	If $WatchArray[0] = 0 Then Return
 
-	$PTBurnLogEntries = FileReadToArray($PTBurnJobLog)
+	Local $PTBurnLogEntries = FileReadToArray($PTBurnJobLog)
 	If @error Then Return
-	$LinesRead = @extended
+	Local $LinesRead = @extended
 
-	$Found = 0
+	Local $Found = 0
 	For $i = 1 To $WatchArray[0]
-		$JobComplete = "Job Completed (" & $WatchArray[$i] & ")"
+		Local $JobComplete = "Job Completed (" & $WatchArray[$i] & ")"
 		For $j = 0 To ($LinesRead - 1)
 			If StringInStr($PTBurnLogEntries[$j], $JobComplete) Then						; PTBurn has completed this job
-				$JobStarted = "Job Started (" & $WatchArray[$i] & ")"
+				Local $JobStarted = "Job Started (" & $WatchArray[$i] & ")"
 				For $k = 0 To $j
 					If StringInStr($PTBurnLogEntries[$k], $JobStarted) Then
 						$Found += 1
 
-						$FieldArray = StringSplit($PTBurnLogEntries[$k], ",")
-						$ATime = $FieldArray[3]
+						Local $FieldArray = StringSplit($PTBurnLogEntries[$k], ",")
+						Local $ATime = $FieldArray[3]
 						$FieldArray = StringSplit($ATime, "/ ")
-						$StartTime = $FieldArray[3] & "/" & $FieldArray[1] & "/" & $FieldArray[2] & " " & $FieldArray[4]
+						Local $StartTime = $FieldArray[3] & "/" & $FieldArray[1] & "/" & $FieldArray[2] & " " & $FieldArray[4]
 
 						$FieldArray = StringSplit($PTBurnLogEntries[$j], ",")
 						$ATime = $FieldArray[3]
 						$FieldArray = StringSplit($ATime, "/ ")
-						$EndTime = $FieldArray[3] & "/" & $FieldArray[1] & "/" & $FieldArray[2] & " " & $FieldArray[4]
+						Local $EndTime = $FieldArray[3] & "/" & $FieldArray[1] & "/" & $FieldArray[2] & " " & $FieldArray[4]
 
 						LogJobSummary($WatchArray[$i], $StartTime, $EndTime)
 
@@ -401,19 +443,19 @@ Func CheckWatchedJobs()
 EndFunc
 
 Func LogJobSummary($ID, $PTStart, $PTEnd)
-	$LogEntries = FileReadToArray($LogFile)
+	Local $LogEntries = FileReadToArray($LogFile)
 	If @error Then Return
-	$LinesRead = @extended
+	Local $LinesRead = @extended
 
-	$FirstSeen = ""
-	$CachingTime = ""
-	$CachingComplete = $ID & " Caching Complete"
+	Local $FirstSeen = ""
+	Local $CachingTime = ""
+	Local $CachingComplete = $ID & " Caching Complete"
 
 	For $i = 0 To ($LinesRead - 1)
 
 		If $FirstSeen = "" Then
 			If StringInStr($LogEntries[$i], $ID) Then
-				$FieldArray = StringSplit($LogEntries[$i], " .")
+				Local $FieldArray = StringSplit($LogEntries[$i], " .")
 				$FirstSeen = $FieldArray[1] & " " & $FieldArray[3]
 				ContinueLoop
 			EndIf
@@ -429,8 +471,8 @@ Func LogJobSummary($ID, $PTStart, $PTEnd)
 
 	$LogEntries = ""
 
-	$JobTotalTime = ElapsedHHMMSS(_DateDiff('s', $FirstSeen, $PTEnd))
-	$PTBurnTime = ElapsedHHMMSS(_DateDiff('s', $PTStart, $PTEnd))
+	Local $JobTotalTime = ElapsedHHMMSS(_DateDiff('s', $FirstSeen, $PTEnd))
+	Local $PTBurnTime = ElapsedHHMMSS(_DateDiff('s', $PTStart, $PTEnd))
 
 	LogMsg($Id & " Job Total Time = " & $JobTotalTime & " (Caching = " & $CachingTime & ", PTBurn Time = " & $PTBurnTime & ")")
 
@@ -438,9 +480,9 @@ EndFunc
 
 Func ElapsedHHMMSS($seconds)
 
-	$ss = Mod($seconds, 60)
-	$mm = Mod($seconds / 60, 60)
-	$hh = Floor($seconds / 60 ^ 2)
+	Local $ss = Mod($seconds, 60)
+	Local $mm = Mod($seconds / 60, 60)
+	Local $hh = Floor($seconds / 60 ^ 2)
 
 	return StringFormat("%02i:%02i:%02i", $hh, $mm, $ss)
 
@@ -460,25 +502,27 @@ EndFunc
 
 Func GetOptionInfo()
 
-	$OptionNames = IniReadSectionNames($IniFile)
+	Local $OptionNames = IniReadSectionNames($IniFile)
 	If @error Then
 		MsgBox(4096, "", "Error occurred, probably no INI file.")
 	Else
 
-		Global $OptionInfo[$OptionNames[0]][4]
+		Local $InfoArray[$OptionNames[0]][4]
 
 		$OptionCount = 0
 		For $i = 1 To $OptionNames[0]
 			if ($OptionNames[$i] = "Config") OR ($OptionNames[$i] = "PTBurn Options") then ContinueLoop
-			$OptionInfo[$OptionCount][0] = $OptionNames[$i]
-			$OptionInfo[$OptionCount][1] = IniRead($IniFile, $OptionNames[$i], "Description", "{Undefined}")
-			$OptionInfo[$OptionCount][2] = IniRead($IniFile, $OptionNames[$i], "ImageFile", "{Undefined}")
-			;$OptionInfo[$OptionCount][3] will ultimately be used to hold CtrlID for GUI Selection
+			$InfoArray[$OptionCount][0] = $OptionNames[$i]
+			$InfoArray[$OptionCount][1] = IniRead($IniFile, $OptionNames[$i], "Description", "{Undefined}")
+			$InfoArray[$OptionCount][2] = IniRead($IniFile, $OptionNames[$i], "ImageFile", "{Undefined}")
+			;$InfoArray[$OptionCount][3] will ultimately be used to hold CtrlID for GUI Selection
 			$OptionCount += 1
 		Next
 
+		ReDim $InfoArray[$OptionCount][4]
+
 	EndIf
-	Return $OptionCount
+	Return $InfoArray
 EndFunc
 
 Func GetBaseFileName($FN)
@@ -495,8 +539,8 @@ EndFunc
 
 Func GetLocalIP()
 
-	$IP=""
-	$IFCount=0
+	Local $IP=""
+	Local $IFCount=0
 
 	if (@IPAddress1 <> "127.0.0.1") AND (@IPAddress1 <> "0.0.0.0") Then
 		$IFCount += 1
@@ -523,17 +567,17 @@ Func GetLocalIP()
 	; If we have multiple Local IP Addresses then we should to dig a little further to eliminate any Virtual (internal) addresses
 	; Find the first adapter which has an associated Gateway...
 
-	$IPConfig = GetDosAppStdOutput("ipconfig")
-	$IPInfoArray = StringSplit($IPConfig, @CRLF, 1)
+	Local $IPConfig = GetDosAppStdOutput("ipconfig")
+	Local $IPInfoArray = StringSplit($IPConfig, @CRLF, 1)
 
-	$BetterIP = ""
-	$GW = ""
+	Local $BetterIP = ""
+	Local $GW = ""
 	For $i = 1 to $IPInfoArray[0]
 
 		If $BetterIP = "" Then
 
 			If StringInStr($IPInfoArray[$i], "IPv4 Address") Then
-				$FieldArray = StringSplit($IPInfoArray[$i], ":")
+				Local $FieldArray = StringSplit($IPInfoArray[$i], ":")
 				If $FieldArray[0] = 2 Then $BetterIP = StringStripWS($FieldArray[2], $STR_STRIPALL)
 			EndIf
 
@@ -562,7 +606,9 @@ EndFunc
 
 Func GetDOSAppStdOutput($DOSAppCmd)
 
-	$cPID = Run($DOSAppCmd, @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
+	Local $Output
+
+	Local $cPID = Run($DOSAppCmd, @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
 	If $cPID = 0 and @error <> 0 Then
 		$Output = "RunFail: " & $DOSAppCmd & " (Run Error Code = " & @error & ")"
 	Else
@@ -576,10 +622,64 @@ EndFunc
 
 Func LogMsg($msg)
 
-	$TimeStamp = @YEAR & "/" & @MON & "/" & @MDAY & " @ " & @HOUR & ":" & @MIN & ":" & @SEC & "." & @MSEC
+	Local $TimeStamp = @YEAR & "/" & @MON & "/" & @MDAY & " @ " & @HOUR & ":" & @MIN & ":" & @SEC & "." & @MSEC
 
-	$LogEntry = StringFormat("%s %-8s %-15s : %s\n", $TimeStamp, "(" & $OpMode & ")", $IPAddress, $msg)
+	Local $LogEntry = StringFormat("%s %-8s %-15s : %s\n", $TimeStamp, "(" & $OpMode & ")", $IPAddress, $msg)
 
 	FileWrite($LogFile, $LogEntry)
 
+	If $OpMode = "Host" Then
+		If Tail($LogArray) > 0 Then GUICtrlSetData($LogCtrlID, _ArrayToString($LogArray, @CRLF, 1))
+	EndIf
 EndFunc
+
+Func TailInit($FileName, $NumLines)
+	Local $hFile = FileOpen($FileName, $FO_READ)
+	Local $LArray[$Numlines + 1]
+
+	$LArray[0] = $hFile
+	Tail($LArray)
+	Return $LArray
+EndFunc
+
+Func Tail(ByRef $LArray)
+	Static Local $FilePos = 0
+	Static Local $LastChar = ""
+
+	Local $hFile = $LArray[0]
+
+	Local $LinesRead = 0
+	While TRUE
+		Local $Line = FileReadLine($hFile)
+		If @error = -1 Then 					; EOF
+			Local $NewFilePos = FileGetPos($hFile)
+			If $NewFilePos <> $FilePos Then
+				FileSetPos($hFile, -1, $FILE_CURRENT)
+				$LastChar = FileRead($hFile, 1)
+				$FilePos = $NewFilePos
+			EndIf
+			ExitLoop
+		ElseIf @error = 1 Then 					; Error
+			$LinesRead = -1
+			ExitLoop
+		EndIf
+
+		$LinesRead += 1
+		If ($LinesRead = 1) AND $LastChar <> @LF Then
+			$LArray[UBound($LArray) - 1] &= $Line
+		Else
+			_ArrayPush($LArray, $Line)
+		EndIf
+	WEnd
+
+	$LArray[0] = $hFile
+	Return $LinesRead
+
+EndFunc
+
+Func TailTerminate(ByRef $LArray)
+	FileClose($LArray[0])
+	ReDim $LArray[1]
+EndFunc
+
+
