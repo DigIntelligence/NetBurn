@@ -93,8 +93,15 @@
     itself). When the NBB Batch File is selected (via a pre-defined
     Button or using the "Search" function), NetBurn will ask how many
     copies of the set should be produced.
+    
+10. **NETBURN provides detailed on-screen logging:** When operating
+    in HOST mode, NETBURN "tails" the contents of its log file in
+    real time.  The log file provides information on client requests,
+    Host submissions, file caching activity (and times) and will
+    role up all salient timing info (inc data extracted from the
+    PTBurn log file)
 
-10. **NETBURN is completely portable and does not require any
+11. **NETBURN is completely portable and does not require any
     installation process:** The NETBURN executable and its
     corresponding INI file simply need to be copied to a Network
     Resource. This very same EXE/INI can be shared by the Primera Host
@@ -113,7 +120,7 @@
     (NetBurn.log) with detailed info on client host activity (Startups,
     Submission Details, Shutdowns, Job Summaries)
 
-11. **NETBURN is Free and Open-Source:** NETBURN is maintained as a
+12. **NETBURN is Free and Open-Source:** NETBURN is maintained as a
     project on GitHub. It is written and compiled using only the very
     simple (yet powerful) AutoIT Language and Development GUI (also
     Free): https://www.autoitscript.com/site/autoit/
