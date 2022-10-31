@@ -82,7 +82,20 @@
     any parameters found within will append (or override) the Global
     PTBurn Options specified in the NETBURN Configuration file.
 
-9.  **NETBURN supports the submission of multiple disc images using a
+9.  **NETBURN Supports “Autobinning” the target media:**  In addition 
+    to supporting Global and Image-Specific PTBurn options (see above), 
+    NetBurn also supports “Autobinning” for media selection.  If enabled, 
+    NetBurn will select the appropriate media by comparing the actual 
+    size of the Image File and comparing it with the specified capacity 
+    limits set for the associated bins.  Setting “BinID = Auto” in the 
+    [PTBurn Options] section of the global options file will enable 
+    AutoBinning.  Then, Bin1MB and Bin2MB must ALSO be set in the [Config] 
+    section to make this work.  For Example: setting “BIN1MB = 700” and 
+    “Bin2MB = 25000” would enable AutoBinning for CD’s in Bin1 and 
+    BluRays in Bin2.  Note that lesser capacity media should always be 
+    loaded in Bin1 (the left-most bin).
+
+10. **NETBURN supports the submission of multiple disc images using a
     single "Batch Job" definition:** By selecting an \*.NBB file
     (NetBurn Batch File), instead of a standard \*.ISO or \*.GI Image
     file, NetBurn will process that file in "Batch Mode". The NBB file
@@ -94,14 +107,14 @@
     Button or using the "Search" function), NetBurn will ask how many
     copies of the set should be produced.
     
-10. **NETBURN provides detailed on-screen logging:** When operating
+11. **NETBURN provides detailed on-screen logging:** When operating
     in HOST mode, NETBURN "tails" the contents of its log file in
     real time.  The log file provides information on client requests,
     Host submissions, file caching activity (and times) and will
     role up all salient timing info (inc data extracted from the
     PTBurn log file)
 
-11. **NETBURN is completely portable and does not require any
+12. **NETBURN is completely portable and does not require any
     installation process:** The NETBURN executable and its
     corresponding INI file simply need to be copied to a Network
     Resource. This very same EXE/INI can be shared by the Primera Host
@@ -120,7 +133,7 @@
     (NetBurn.log) with detailed info on client host activity (Startups,
     Submission Details, Shutdowns, Job Summaries)
 
-12. **NETBURN is Free and Open-Source:** NETBURN is maintained as a
+13. **NETBURN is Free and Open-Source:** NETBURN is maintained as a
     project on GitHub. It is written and compiled using only the very
     simple (yet powerful) AutoIT Language and Development GUI (also
     Free): https://www.autoitscript.com/site/autoit/
