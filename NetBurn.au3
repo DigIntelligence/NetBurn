@@ -12,10 +12,10 @@
 #include <FileConstants.au3>
 
 Global $Title  = "NetBurn"
-Global $Version  = "1.30"
+Global $Version  = "1.31"
 
 #pragma compile(ProductName, "NetBurn")
-#pragma compile(ProductVersion, 1.25)
+#pragma compile(ProductVersion, 1.31)
 #pragma compile(CompanyName, "Digital Intelligence")
 #pragma compile(Comments, Author: Edward C. Van Every")
 
@@ -344,25 +344,39 @@ Func SubmitJob($ImageFile, $Copies=0, $Mode="Host", $JobID="", $JobRequestTime =
 	$JobFileContents &= "PrintLabel = " & $LabelFileDest & @CRLF
 	$JobFileContents &= "Copies = " & $Copies & @CRLF
 
-	; Get Image File Size - This COULD be used to automatically pick an input bin CD vs DVD, etc  (PTBurn Options)...
+	; Get Image File Size - To be used for AutoBinning - to automatically pick an input bin CD vs DVD, etc  (PTBurn Options)...
 	Local $ImageFileSize = FileGetSize($ImageFile)
 
-	; Determine PTBurn Options
+	; Read Global PTBurn Options
 	Local $ImageOptions
 	$PTBurnOptions = IniReadSection($IniFile, "PTBurn Options")
 	If @error Then $PTBurnOptions[0][0] = 0
 
-	; Check for AutoBinning
+	; Check for AutoBinning in Global PTBurn Options (and set as appropriate)
 	For $i = 1 To $PTBurnOptions[0][0]
 		If ($PTBurnOptions[$i][0] = "BinID") And ($PTBurnOptions[$i][1] = "Auto") Then
-			If $ImageFileSize/1048576 <= $Bin1MB Then
-				$PTBurnOptions[$i][1] = "1"
-			ElseIf $ImageFileSize/1048576 <= $Bin2MB Then
-				$PTBurnOptions[$i][1] = "2"
+			If $Bin1MB < $Bin2MB Then
+				If $ImageFileSize/1048576 <= $Bin1MB Then
+					$PTBurnOptions[$i][1] = "1"
+				ElseIf $ImageFileSize/1048576 <= $Bin2MB Then
+					$PTBurnOptions[$i][1] = "2"
+				EndIf
+			Else
+				If $ImageFileSize/1048576 <= $Bin2MB Then
+					$PTBurnOptions[$i][1] = "2"
+				ElseIf $ImageFileSize/1048576 <= $Bin1MB Then
+					$PTBurnOptions[$i][1] = "1"
+				EndIf
+			EndIf
+			If $PTBurnOptions[$i][1] = "Auto" Then
+				LogMsg($JobId & " Job FAILED! (Autobin Failure: Image Size = " & $ImageFileSize/1048576 & "MB, Bin1 = " & $Bin1MB & "MB, Bin2 = " & $Bin2MB & "MB)")
+				_ArrayDelete($WatchArray, $NewIndex)
+				Return
 			EndIf
 		EndIf
 	Next
 
+	; Override Global Options with Image Specific Options
 	If $ImageOptionsFile <> "" Then
 		$ImageOptions = IniReadSection($ImageOptionsFile, "PTBurn Options")
 		If @error Then
@@ -376,10 +390,12 @@ Func SubmitJob($ImageFile, $Copies=0, $Mode="Host", $JobID="", $JobRequestTime =
 		EndIf
 	EndIf
 
+	; Output all Global Options (inc Image Specific Overrides)
 	For $i = 1 To $PTBurnOptions[0][0]
 		$JobFileContents &= $PTBurnOptions[$i][0] & " = " & $PTBurnOptions[$i][1] & @CRLF
 	Next
 
+	; Add any additional options specified in Image Specific Options File
 	If $ImageOptionsFile <> "" Then
 		For $i = 1 To $ImageOptions[0][0]
 			Local $Found = 0
