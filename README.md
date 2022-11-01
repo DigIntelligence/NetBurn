@@ -92,8 +92,8 @@
     AutoBinning.  Then, Bin1MB and Bin2MB must ALSO be set in the [Config] 
     section to make this work.  For Example: setting “BIN1MB = 700” and 
     “Bin2MB = 25000” would enable AutoBinning for CD’s in Bin1 and 
-    BluRays in Bin2.  Note that lesser capacity media should always be 
-    loaded in Bin1 (the left-most bin).
+    BluRays in Bin2.  NetBurn will automatically select the Bin with 
+    the smallest Discs which will fit the image.
 
 10. **NETBURN supports the submission of multiple disc images using a
     single "Batch Job" definition:** By selecting an \*.NBB file
